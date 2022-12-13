@@ -38,7 +38,9 @@ BEGIN -- (c) 2011 Servicios de Informática Colegiada, S.A. de C.V.
       Monto_Aplicado      TEXT,
       Poliza              TEXT,
       Comision            TEXT,
-      iva_comision        TEXT);
+      iva_comision        TEXT,
+    -- Add new variable type TEXT
+    Concepto_Poliza     TEXT);
   RETURN 0;
 END;$$
 LANGUAGE plpgsql;
@@ -157,7 +159,9 @@ CREATE TYPE ofx_fs_cobranza AS (
     Monto_Aplicado      TEXT,
     Poliza              TEXT,
     Comision            TEXT,
-    iva_comision        TEXT
+    iva_comision        TEXT,
+    -- Add new variable type TEXT
+    Concepto_Poliza     TEXT
 
 );
 
@@ -264,7 +268,10 @@ BEGIN
       Monto_Aplicado      NUMERIC,
       Poliza              TEXT,
       Comision            NUMERIC,
-      iva_comision        NUMERIC);
+      iva_comision        NUMERIC,
+      -- Add new variable to store concept poliza
+      Concepto_Poliza     TEXT
+      );
 
 
   FOR r IN SELECT da.*,d.idsucursal,d.idrol,d.idasociado 
@@ -380,10 +387,15 @@ BEGIN
       t.Monto_Cobrado       :=r.abono+r.montoio+r.montoim+r.montoca;
       t.Monto_Bonificado    :='0.00';
       t.Monto_Aplicado      :=r.abono+r.montoio+r.montoim+r.montoca;
-      t.Poliza              :=r.tipopol||'-'||r.idpoliza;
+      t.Poliza              := r.idsucpol ||'-'|| r.periodo ||'-'|| r.tipopol||'-'||r.idpoliza;
+
+      --PERFORM of_ofx_notice('info', t.Poliza::TEXT);
+      -- Get and set data to variable new
+      t.Concepto_Poliza := (SELECT concepto FROM polizas WHERE (idsucpol, periodo, tipopol, idpoliza) = (r.idsucpol, r.periodo, r.tipopol, r.idpoliza))::TEXT;
+      --PERFORM of_ofx_notice('info',t.Concepto_Poliza);
 
       RETURN NEXT t;
-      INSERT INTO temp_cobranza_sus VALUES(t.Cliente,t.Nombre,t.Auxiliar,t.Fecha,t.Pago,of_numeric(t.Capital),of_numeric(t.Intereses), of_numeric(t.Vencidos),of_numeric(t.IVA_io),of_numeric(t.Comisiones),of_numeric(t.Seguro_auto),                                          of_numeric(t.IVA_seg_auto),of_numeric(t.Seguro_vida),of_numeric(t.gps),                                          of_numeric(t.IVA_gps),of_numeric(t.spl),of_numeric(t.IVA_spl), of_numeric(t.diferido), of_numeric(t.Monto_Cobrado),0.00,of_numeric(t.Monto_Aplicado),t.Poliza,of_numeric(t.Comision),of_numeric(t.iva_comision));
+      INSERT INTO temp_cobranza_sus VALUES(t.Cliente,t.Nombre,t.Auxiliar,t.Fecha,t.Pago,of_numeric(t.Capital),of_numeric(t.Intereses), of_numeric(t.Vencidos),of_numeric(t.IVA_io),of_numeric(t.Comisiones),of_numeric(t.Seguro_auto),                                          of_numeric(t.IVA_seg_auto),of_numeric(t.Seguro_vida),of_numeric(t.gps),                                          of_numeric(t.IVA_gps),of_numeric(t.spl),of_numeric(t.IVA_spl), of_numeric(t.diferido), of_numeric(t.Monto_Cobrado),0.00,of_numeric(t.Monto_Aplicado),t.Poliza,of_numeric(t.Comision),of_numeric(t.iva_comision), t.Concepto_Poliza);
 
   END LOOP;
   RETURN ;
@@ -418,8 +430,9 @@ CREATE TYPE ofx_fs_cobranza_nivel AS (
     Monto_Aplicado      NUMERIC,
     Poliza              TEXT,
     Comision            NUMERIC,
-    iva_comision        NUMERIC
-
+    iva_comision        NUMERIC,
+    -- Add new variable to store concept poliza
+    Concepto_Poliza     TEXT
 );
 
 CREATE OR REPLACE FUNCTION ofx_fs_cobranza_nivel (p_nivel INTEGER) 
@@ -523,6 +536,7 @@ BEGIN
               t.Monto_Bonificado    :=_t1Monto_Bonificado;
               t.Monto_Aplicado      :=_t1Monto_Aplicado;
               t.Poliza              := '';
+              t.Concepto_Poliza     := '';
               RETURN NEXT t;
               t.Cliente             :=' ';
               t.Nombre              :=' ';
@@ -546,6 +560,7 @@ BEGIN
               t.Monto_Bonificado    :=NULL;
               t.Monto_Aplicado      :=NULL;
               t.Poliza              :='';
+              t.Concepto_Poliza     := '';
               RETURN NEXT t;
               _t1Capital            :=0.00;
               _t1Intereses          :=0.00;
@@ -624,6 +639,7 @@ BEGIN
               t.Monto_Bonificado    :=_t2Monto_Bonificado;
               t.Monto_Aplicado      :=_t2Monto_Aplicado;
               t.Poliza              := '';
+              t.Concepto_Poliza     := '';
               RETURN NEXT t;
               t.Cliente             :=' ';
               t.Nombre              :=' ';
@@ -647,6 +663,7 @@ BEGIN
               t.Monto_Bonificado    :=NULL;
               t.Monto_Aplicado      :=NULL;
               t.Poliza              := '';
+              t.Concepto_Poliza     := '';
               RETURN NEXT t;
               _t2Capital            :=0.00;
               _t2Intereses          :=0.00;
@@ -665,6 +682,7 @@ BEGIN
               _t2Monto_Bonificado   :=0.00;
               _t2Monto_Aplicado     :=0.00;
               t.Poliza              := '';
+              t.Concepto_Poliza     := '';
               _t2Capital           :=COALESCE(_t2Capital,0)+r.Capital;
               _t2Intereses         :=COALESCE(_t2Intereses,0)+r.Intereses;
               _t2Vencidos          :=COALESCE(_t2Vencidos,0)+r.Vencidos;
@@ -682,6 +700,7 @@ BEGIN
               _t2Monto_Bonificado  :=COALESCE(_t2Monto_Bonificado,0)+r.Monto_Bonificado;
               _t2Monto_Aplicado    :=COALESCE(_t2Monto_Aplicado,0)+r.Monto_Aplicado;
               t.Poliza              := '';
+              t.Concepto_Poliza     := '';
           ELSE
               _t2Capital           :=COALESCE(_t2Capital,0)+r.Capital;
               _t2Intereses         :=COALESCE(_t2Intereses,0)+r.Intereses;
@@ -700,6 +719,7 @@ BEGIN
               _t2Monto_Bonificado  :=COALESCE(_t2Monto_Bonificado,0)+r.Monto_Bonificado;
               _t2Monto_Aplicado    :=COALESCE(_t2Monto_Aplicado,0)+r.Monto_Aplicado;
               t.Poliza              := '';
+              t.Concepto_Poliza     := '';
           END IF;
           _pasocte  :=r.Cliente;
       END IF;
@@ -726,6 +746,8 @@ BEGIN
       t.Monto_Bonificado    :=0.00;
       t.Monto_Aplicado      :=r.Monto_Aplicado;
       t.Poliza              := r.Poliza;
+      t.Concepto_Poliza     := r.Concepto_Poliza;
+
       IF (p_nivel=1) THEN
           RETURN NEXT t;
       END IF;
@@ -771,6 +793,7 @@ BEGIN
   t.Monto_Bonificado    :=NULL;
   t.Monto_Aplicado      :=NULL;
   t.Poliza              := '';
+  t.Concepto_Poliza     := '';
   RETURN NEXT t;
   t.Cliente             :='Tot. Gral';
   t.Nombre              :=' ';
@@ -794,6 +817,7 @@ BEGIN
   t.Monto_Bonificado    :=_t3Monto_Bonificado;
   t.Monto_Aplicado      :=_t3Monto_Aplicado;
   t.Poliza              := '';
+  t.Concepto_Poliza     := '';
   RETURN NEXT t;
   RETURN ;
 END;$$
